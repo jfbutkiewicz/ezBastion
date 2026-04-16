@@ -14,17 +14,18 @@ require (
 	github.com/go-resty/resty/v2 v2.5.0
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/jinzhu/gorm v1.9.16
-	github.com/pelletier/go-toml v1.8.1
+	github.com/pelletier/go-toml v1.9.3
 	github.com/satori/go.uuid v1.2.0
 	github.com/shirou/gopsutil v3.21.2+incompatible
 	github.com/sirupsen/logrus v1.8.1
+	github.com/smartystreets/goconvey v1.8.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
 	github.com/urfave/cli v1.22.5
-	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210314195730-07df6a141424
-	golang.org/x/text v0.3.5
+	golang.org/x/sync v0.1.0
+	golang.org/x/sys v0.6.0
+	golang.org/x/text v0.8.0
 	gopkg.in/ini.v1 v1.62.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
-replace github.com/chavers/ezb_priv => C:\Users\chavers\go\src\chavers.localhost\ezb_priv\
+
+//replace github.com/chavers/ezb_priv => C:\Users\chavers\go\src\chavers.localhost\ezb_priv\

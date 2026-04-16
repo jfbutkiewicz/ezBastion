@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 // This file is part of ezBastion.
@@ -15,19 +16,17 @@
 //     You should have received a copy of the GNU Affero General Public License
 //     along with ezBastion.  If not, see <https://www.gnu.org/licenses/>.
 
-// +build windows
-
 package servicemanager
 
 import (
 	"ezBastion/pkg/setupmanager"
 	"fmt"
-	"golang.org/x/sys/windows/svc/debug"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -40,13 +39,38 @@ var (
 
 type MyService struct{}
 
-type MainService interface {
-	StartMainService(serverchan *chan bool)
+// cmdToSvc convertit le type Cmd commun vers svc.Cmd Windows.
+func cmdToSvc(c Cmd) svc.Cmd {
+	switch c {
+	case Stop:
+		return svc.Stop
+	case Shutdown:
+		return svc.Shutdown
+	case Start:
+		return svc.Stop // Start est géré via StartService, pas ControlService
+	default:
+		return svc.Stop
+	}
+}
+
+// stateToSvc convertit le type State commun vers svc.State Windows.
+func stateToSvc(s State) svc.State {
+	switch s {
+	case Stopped:
+		return svc.Stopped
+	case Running:
+		return svc.Running
+	case Starting:
+		return svc.StartPending
+	case Stopping:
+		return svc.StopPending
+	default:
+		return svc.Stopped
+	}
 }
 
 // StartService starts the windows service targeted by name
 func StartService(name string) error {
-
 	m, err := mgr.Connect()
 	if err != nil {
 		log.Errorln(fmt.Sprintf("could not connect the service control manager error : %s", err.Error()))
@@ -67,9 +91,9 @@ func StartService(name string) error {
 	return nil
 }
 
-// ControlService controls the service targeted by name
-func ControlService(name string, c svc.Cmd, to svc.State) error {
-
+// ControlService controls the service targeted by name.
+// Utilise les types communs Cmd et State définis dans servicemanager_common.go.
+func ControlService(name string, c Cmd, to State) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		log.Errorln(fmt.Sprintf("could not connect the service %s, error : %s", name, err.Error()))
@@ -82,13 +106,13 @@ func ControlService(name string, c svc.Cmd, to svc.State) error {
 		return fmt.Errorf("could not access service: %v", err)
 	}
 	defer s.Close()
-	status, err := s.Control(c)
+	status, err := s.Control(cmdToSvc(c))
 	if err != nil {
 		log.Errorln(fmt.Sprintf("could not send control=%d: %s", c, err.Error()))
 		return fmt.Errorf("could not send control=%d: %v", c, err)
 	}
 	timeout := time.Now().Add(10 * time.Second)
-	for status.State != to {
+	for status.State != stateToSvc(to) {
 		if timeout.Before(time.Now()) {
 			log.Errorln(fmt.Sprintf("timeout waiting for service to go to state=%d", to))
 			return fmt.Errorf("timeout waiting for service to go to state=%d", to)
@@ -148,10 +172,9 @@ func InstallService(name, desc, exePath string) error {
 	return nil
 }
 
-// RemoveService remove the service trageted by name
+// RemoveService remove the service targeted by name
 func RemoveService(name string) error {
 	var errormsg string
-
 	m, err := mgr.Connect()
 	if err != nil {
 		errormsg = err.Error()
@@ -183,7 +206,6 @@ func RemoveService(name string) error {
 func (m *MyService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
-
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 	serverchan := make(chan bool)
 	go ms.StartMainService(&serverchan)
@@ -195,11 +217,9 @@ loop:
 			case svc.Interrogate:
 				elog.Info(1, "Interrogate")
 				changes <- c.CurrentStatus
-
 				time.Sleep(100 * time.Millisecond)
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-
 				close(serverchan)
 				break loop
 			default:
@@ -211,6 +231,7 @@ loop:
 	return
 }
 
+// RunService lance le service en mode windows service ou debug.
 func RunService(name string, isDebug bool, MS MainService) {
 	var err error
 	if isDebug {
